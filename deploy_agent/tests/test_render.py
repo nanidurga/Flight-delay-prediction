@@ -20,11 +20,13 @@ async def test_create_service_returns_service_and_deploy_ids(render_client):
     }
     mock_response.raise_for_status = MagicMock()
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response):
-        result = await render_client.create_service(
-            github_repo="21MA23002/mtp-flight-delay",
-            service_name="mtp-flight-api"
-        )
+    # _get_owner_id makes a GET to /owners before POSTing; mock it out
+    with patch.object(render_client, "_get_owner_id", new=AsyncMock(return_value="owner-1")):
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response):
+            result = await render_client.create_service(
+                github_repo="21MA23002/mtp-flight-delay",
+                service_name="mtp-flight-api"
+            )
 
     assert result["service_id"] == "srv-abc123"
     assert result["deploy_id"] == "dep-xyz789"
@@ -32,16 +34,15 @@ async def test_create_service_returns_service_and_deploy_ids(render_client):
 
 @pytest.mark.asyncio
 async def test_get_deploy_returns_state(render_client):
-    """get_deploy GETs /v1/deploys/{id} and returns state."""
+    """get_deploy GETs /v1/services/{id}/deploys/{id} and returns state."""
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "deploy": {"id": "dep-xyz789", "status": "live"}
-    }
+    # API returns the deploy object directly (no "deploy" wrapper)
+    mock_response.json.return_value = {"id": "dep-xyz789", "status": "live"}
     mock_response.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
-        result = await render_client.get_deploy("dep-xyz789")
+        result = await render_client.get_deploy("srv-abc123", "dep-xyz789")
 
     assert result["status"] == "live"
 
@@ -51,12 +52,11 @@ async def test_get_service_status_returns_live_url(render_client):
     """get_service_status returns service state and live URL."""
     mock_response = MagicMock()
     mock_response.status_code = 200
+    # API returns the service object directly (no "service" wrapper)
     mock_response.json.return_value = {
-        "service": {
-            "id": "srv-abc123",
-            "serviceDetails": {"url": "https://mtp-flight-api.onrender.com"},
-            "suspended": "not_suspended"
-        }
+        "id": "srv-abc123",
+        "serviceDetails": {"url": "https://mtp-flight-api.onrender.com"},
+        "suspended": "not_suspended"
     }
     mock_response.raise_for_status = MagicMock()
 
@@ -106,7 +106,9 @@ async def test_render_error_raised_on_http_error(render_client):
         "401 Unauthorized", request=MagicMock(), response=MagicMock()
     )
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response):
-        from deploy_agent.render import RenderError
-        with pytest.raises(RenderError):
-            await render_client.create_service("user/repo", "name")
+    # _get_owner_id is called first in create_service; mock it so the POST path is reached
+    with patch.object(render_client, "_get_owner_id", new=AsyncMock(return_value="owner-1")):
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response):
+            from deploy_agent.render import RenderError
+            with pytest.raises(RenderError):
+                await render_client.create_service("user/repo", "name")

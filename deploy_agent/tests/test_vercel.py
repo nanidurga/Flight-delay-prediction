@@ -52,8 +52,19 @@ async def test_create_deploy_hook_returns_hook_url(vercel_client):
     """create_deploy_hook returns the hook URL string."""
     mock_response = MagicMock()
     mock_response.status_code = 200
+    # Vercel returns the updated project object; hooks live at link.deployHooks
     mock_response.json.return_value = {
-        "hook": {"url": "https://api.vercel.com/v1/integrations/deploy/abc/xyz"}
+        "link": {
+            "deployHooks": [
+                {
+                    "id": "hook-xyz",
+                    "name": "claude-deploy",
+                    "ref": "master",
+                    "url": "https://api.vercel.com/v1/integrations/deploy/abc/xyz",
+                    "createdAt": 1000,
+                }
+            ]
+        }
     }
     mock_response.raise_for_status = MagicMock()
 
