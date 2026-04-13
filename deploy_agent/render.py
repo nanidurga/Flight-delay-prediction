@@ -41,7 +41,7 @@ class RenderClient:
                 "region": "oregon",
             },
             "repo": f"https://github.com/{github_repo}",
-            "branch": "main",
+            "branch": "master",
             "autoDeploy": "yes",
         }
         try:

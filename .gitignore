@@ -30,5 +30,26 @@ env/
 .vscode/
 .idea/
 
-# Model artifacts (large binaries — tracked intentionally if needed)
-# model/*.pkl
+# Legacy model artifacts (superseded by Sprint 7 — too large or unused)
+model/cluster_models.pkl
+model/knn_assigner.pkl
+model/global_model.pkl
+model/delay_regressor.pkl
+model/delay_regressor_p10.pkl
+model/delay_regressor_p90.pkl
+model/delay_type_props.pkl
+model/delay_type_regressors.pkl
+model/scaler.pkl
+model/selector.pkl
+model/hist_feature_lookup.pkl
+
+# Training data (41 MB — not needed for inference)
+data/final_preprocessed_data.csv
+
+# Original source dir
+MTP_codes/
+
+# Large files
+*.pdf
+*.pptx
+*.html

@@ -81,7 +81,7 @@ class VercelClient:
         Create a deploy hook for the project.
         Returns the hook URL (used to trigger deploys without auth).
         """
-        payload = {"name": hook_name, "ref": "main"}
+        payload = {"name": hook_name, "ref": "master"}
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(

@@ -1,0 +1,12 @@
+import axios from 'axios'
+
+const http = axios.create({ baseURL: '/api' })
+
+export const getModelInfo   = ()         => http.get('/model/info').then(r => r.data)
+export const getOptions     = ()         => http.get('/meta/options').then(r => r.data)
+export const getStats       = ()         => http.get('/stats/overview').then(r => r.data)
+export const getLiveFlights = (limit=40) => http.get(`/flights/live?limit=${limit}`).then(r => r.data)
+export const getWeather     = (iata)     => http.get(`/flights/weather?iata=${iata}`).then(r => r.data)
+
+export const predictFlight = (payload) =>
+  http.post('/predict', payload).then(r => r.data)
