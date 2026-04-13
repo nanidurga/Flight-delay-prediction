@@ -42,9 +42,9 @@ export default function Dashboard() {
         <StatCard icon={<Target className="text-blue-400"/>}
           label="Test Accuracy" value={info.overall_accuracy_pct} />
         <StatCard icon={<Layers className="text-purple-400"/>}
-          label="DBSCAN Clusters" value={info.n_clusters.toLocaleString()} />
+          label="ROC-AUC" value={info.roc_auc?.toFixed(3) ?? '—'} />
         <StatCard icon={<Cpu className="text-green-400"/>}
-          label="Cluster Models" value={info.n_cluster_models.toLocaleString()} />
+          label="Regression MAE" value={info.regression_mae ? `${info.regression_mae} min` : '—'} />
         <StatCard icon={<TrendingUp className="text-amber-400"/>}
           label="Training Flights" value="86,478" />
       </div>

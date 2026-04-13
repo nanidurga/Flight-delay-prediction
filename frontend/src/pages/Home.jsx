@@ -14,7 +14,7 @@ const ALL_CITIES = [
   'fort myers','greensboro','honolulu','houston','indianapolis',
   'jacksonville','kansas city','las vegas','los angeles','louisville',
   'madison','memphis','miami','milwaukee','minneapolis','nashville',
-  'new orleans','new york','newark','norfolk','oakland','omaha',
+  'new orleans','new york','newark','norfolk','oakland','omaha','daytona beach',
   'orlando','panama city','philadelphia','phoenix','pittsburgh',
   'portland','raleigh-durham','richmond','rochester','sacramento',
   'salt lake city','san antonio','san diego','san francisco','san jose',
@@ -42,8 +42,88 @@ const DISTANCES = {
   'philadelphia|washington': 140, 'nashville|atlanta': 250, 'charlotte|washington': 390,
 }
 
+const AIRPORT_COORDS = {
+  'new york':       { lat: 40.6413, lon: -73.7781 },
+  'los angeles':    { lat: 33.9425, lon: -118.408  },
+  'chicago':        { lat: 41.9742, lon: -87.9073  },
+  'miami':          { lat: 25.7959, lon: -80.2870  },
+  'dallas':         { lat: 32.8998, lon: -97.0403  },
+  'dallas-fort worth': { lat: 32.8998, lon: -97.0403 },
+  'houston':        { lat: 29.9902, lon: -95.3368  },
+  'atlanta':        { lat: 33.6407, lon: -84.4277  },
+  'seattle':        { lat: 47.4502, lon: -122.309  },
+  'denver':         { lat: 39.8561, lon: -104.676  },
+  'boston':         { lat: 42.3656, lon: -71.0096  },
+  'san francisco':  { lat: 37.6213, lon: -122.379  },
+  'washington':     { lat: 38.9531, lon: -77.4565  },
+  'las vegas':      { lat: 36.0840, lon: -115.154  },
+  'phoenix':        { lat: 33.4373, lon: -112.008  },
+  'orlando':        { lat: 28.4294, lon: -81.3089  },
+  'philadelphia':   { lat: 39.8744, lon: -75.2424  },
+  'minneapolis':    { lat: 44.8848, lon: -93.2223  },
+  'san diego':      { lat: 32.7338, lon: -117.190  },
+  'tampa':          { lat: 27.9755, lon: -82.5332  },
+  'portland':       { lat: 45.5898, lon: -122.592  },
+  'charlotte':      { lat: 35.2140, lon: -80.9431  },
+  'nashville':      { lat: 36.1263, lon: -86.6774  },
+  'salt lake city': { lat: 40.7884, lon: -111.978  },
+  'kansas city':    { lat: 39.2976, lon: -94.7139  },
+  'memphis':        { lat: 35.0424, lon: -89.9767  },
+  'new orleans':    { lat: 29.9934, lon: -90.2580  },
+  'baltimore':      { lat: 39.1754, lon: -76.6682  },
+  'san jose':       { lat: 37.3626, lon: -121.929  },
+  'oakland':        { lat: 37.7213, lon: -122.221  },
+  'austin':         { lat: 30.1975, lon: -97.6664  },
+  'san antonio':    { lat: 29.5337, lon: -98.4698  },
+  'jacksonville':   { lat: 30.4941, lon: -81.6879  },
+  'indianapolis':   { lat: 39.7173, lon: -86.2944  },
+  'columbus':       { lat: 39.9980, lon: -82.8919  },
+  'detroit':        { lat: 42.2162, lon: -83.3554  },
+  'cleveland':      { lat: 41.4117, lon: -81.8498  },
+  'pittsburgh':     { lat: 40.4915, lon: -80.2329  },
+  'richmond':       { lat: 37.5052, lon: -77.3197  },
+  'norfolk':        { lat: 36.8973, lon: -76.0179  },
+  'raleigh-durham': { lat: 35.8801, lon: -78.7880  },
+  'buffalo':        { lat: 42.9405, lon: -78.7322  },
+  'sacramento':     { lat: 38.6954, lon: -121.591  },
+  'honolulu':       { lat: 21.3245, lon: -157.925  },
+  'san juan':       { lat: 18.4394, lon: -66.0018  },
+  'newark':         { lat: 40.6895, lon: -74.1745  },
+  'fort lauderdale':{ lat: 26.0726, lon: -80.1527  },
+  'west palm beach':{ lat: 26.6832, lon: -80.0956  },
+  'fort myers':     { lat: 26.5362, lon: -81.7552  },
+  'dayton':         { lat: 39.9024, lon: -84.2194  },
+  'louisville':     { lat: 38.1744, lon: -85.7360  },
+  'milwaukee':      { lat: 42.9472, lon: -87.8966  },
+  'omaha':          { lat: 41.3032, lon: -95.8941  },
+  'cincinnati':     { lat: 39.0488, lon: -84.6678  },
+  'st. louis':      { lat: 38.7487, lon: -90.3700  },
+  'greensboro':     { lat: 36.0978, lon: -79.9373  },
+  'rochester':      { lat: 43.1189, lon: -77.6724  },
+  'panama city':    { lat: 30.2121, lon: -85.6828  },
+  'sarasota':       { lat: 27.3954, lon: -82.5543  },
+  'daytona beach':  { lat: 29.1799, lon: -81.0581  },
+  'madison':        { lat: 43.1399, lon: -89.3375  },
+  'burlington':     { lat: 44.4719, lon: -73.1533  },
+  'syracuse':       { lat: 43.1112, lon: -76.1063  },
+}
+
+function haversineDistanceMiles(c1, c2) {
+  const R = 3958.8
+  const dLat = (c2.lat - c1.lat) * Math.PI / 180
+  const dLon = (c2.lon - c1.lon) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(c1.lat * Math.PI / 180) * Math.cos(c2.lat * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2
+  return Math.round(R * 2 * Math.asin(Math.sqrt(a)))
+}
+
 function getApproxDistance(origin, dest) {
-  return DISTANCES[`${origin}|${dest}`] || DISTANCES[`${dest}|${origin}`] || null
+  const known = DISTANCES[`${origin}|${dest}`] || DISTANCES[`${dest}|${origin}`]
+  if (known) return { miles: known, estimated: false }
+  const c1 = AIRPORT_COORDS[origin], c2 = AIRPORT_COORDS[dest]
+  if (c1 && c2) return { miles: haversineDistanceMiles(c1, c2), estimated: true }
+  return null
 }
 
 const PRESETS = [
@@ -386,9 +466,10 @@ export default function Home() {
     origin_iata      : 'JFK',
     dest_iata        : 'ORD',
   })
-  const [result,  setResult]  = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
+  const [result,        setResult]        = useState(null)
+  const [loading,       setLoading]       = useState(false)
+  const [error,         setError]         = useState(null)
+  const [distEstimated, setDistEstimated] = useState(false)
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -415,15 +496,30 @@ export default function Home() {
   }
 
   function handleOriginChange(city) {
-    set('origin_city', city)
     const dist = getApproxDistance(city, form.dest_city)
-    if (dist) { set('distance', dist); set('crs_elapsed_time', Math.round(dist / 7 + 30)) }
+    setDistEstimated(dist?.estimated ?? false)
+    setForm(f => ({
+      ...f,
+      origin_city     : city,
+      ...(dist && {
+        // (distance / 7) + 30 ≈ minutes at ~420 mph ground speed + 30 min taxi/climb
+        distance        : dist.miles,
+        crs_elapsed_time: Math.round(dist.miles / 7 + 30),
+      }),
+    }))
   }
 
   function handleDestChange(city) {
-    set('dest_city', city)
     const dist = getApproxDistance(form.origin_city, city)
-    if (dist) { set('distance', dist); set('crs_elapsed_time', Math.round(dist / 7 + 30)) }
+    setDistEstimated(dist?.estimated ?? false)
+    setForm(f => ({
+      ...f,
+      dest_city       : city,
+      ...(dist && {
+        distance        : dist.miles,
+        crs_elapsed_time: Math.round(dist.miles / 7 + 30),
+      }),
+    }))
   }
 
   async function handleSubmit(e) {
@@ -475,7 +571,7 @@ export default function Home() {
                           text-blue-300 border border-blue-500/20"
                style={{ background: 'rgba(37,99,235,0.1)' }}>
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"/>
-            ML-powered · 86k flights trained · 73.4% accuracy
+            ML-powered · 86k flights trained · 91.34% accuracy
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-3 leading-tight">
             Will your flight be{' '}
@@ -490,7 +586,7 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-slate-500 text-sm max-w-md mx-auto">
-            Cluster-then-Classify pipeline · DBSCAN + RandomForest · Real-time weather
+            LightGBM pipeline · 218 features · ROC-AUC 0.973 · Real-time weather
           </p>
         </div>
 
@@ -565,7 +661,9 @@ export default function Home() {
                 <div className="w-8 h-px bg-slate-700"/>
               </div>
               <span className="text-white font-semibold capitalize">{form.dest_city}</span>
-              <span className="text-slate-500 text-xs tabular-nums">{form.distance} mi</span>
+              <span className="text-slate-500 text-xs tabular-nums">
+                {form.distance} mi{distEstimated && <span className="ml-1 text-slate-600">(est.)</span>}
+              </span>
             </div>
 
             {/* Airline */}

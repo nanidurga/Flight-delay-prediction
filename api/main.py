@@ -1,13 +1,15 @@
 """
-main.py — FastAPI backend for the Flight Delay Prediction site.
+main.py — FastAPI backend for the FlightSense Flight Delay Predictor.
 
 Endpoints:
   GET  /                    health check
-  GET  /model/info          model metadata (accuracy, features, cluster count)
+  GET  /model/info          model metadata (accuracy, ROC-AUC, MAE, update count)
   POST /predict             predict delay for a manually entered flight
+  POST /feedback            record actual outcome for incremental retraining
   GET  /flights/live        fetch live flights from OpenSky + predict each
   GET  /flights/weather     current weather at an airport (IATA code)
-  GET  /stats/overview      summary stats from training data for charts
+  GET  /meta/options        valid carrier/city lists for form dropdowns
+  GET  /stats/overview      summary stats from training data for dashboard charts
 
 Run with:  uvicorn api.main:app --reload   (from MTP root)
 """
@@ -43,14 +45,18 @@ _feedback_lock = threading.Lock()
 # ─────────────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Flight Delay Predictor API",
-    description="Predicts flight delays using a cluster-then-classify ML pipeline.",
-    version="1.0.0",
+    description="Predicts US domestic flight delays using a LightGBM ML pipeline (91.34% accuracy, ROC-AUC 0.973).",
+    version="2.0.0",
 )
 
 # Allow the React frontend (running on a different port) to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # tighten this in production
+    allow_origins=[
+        "https://mtp-flight-delay-exaj8moop-durgas-projects-9ea2fbeb.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:4173",   # vite preview
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -210,8 +216,6 @@ async def predict_flight(flight: FlightInput):
 
     result = predictor.predict(features)
     prob   = result["probability"]
-
-    prob = result["probability"]
     return PredictionResponse(
         delayed              = result["delayed"],
         probability          = prob,

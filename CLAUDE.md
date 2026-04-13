@@ -1,7 +1,7 @@
-# MTP — Flight Delay Prediction
+# MTP — Flight Delay Prediction (FlightSense)
 **Student:** 21MA23002 | **Type:** Master's Thesis Project
 
-Goal: Predict US flight delays using ML and serve predictions via a real-time website.
+Goal: Predict US domestic flight delays using LightGBM and serve real-time predictions via a deployed website.
 
 ---
 
@@ -25,13 +25,26 @@ To redeploy manually, trigger via `deploy_agent` MCP tools or the Render/Vercel 
 
 ## Folder Structure
 
+**Key files added/changed since Sprint 8:**
+- `frontend/vercel.json` — SPA routing rewrites (fixes direct navigation on Vercel)
+- `collect_opensky_data.py` — Daily OpenSky data collector (runs before retrain in CI)
+- `.github/workflows/retrain.yml` — Updated to collect OpenSky data before retraining
+- `api/services/flights.py` — KNOWN_DEST_CITIES expanded to match KNOWN_ORIGIN_CITIES
+- `api/main.py` — Version bumped to 2.0.0, description updated, duplicate `prob` line removed
+- `frontend/src/pages/Home.jsx` — Haversine fallback for all city pairs; distance now always auto-fills
+- `frontend/src/pages/LiveMap.jsx` — Callsign search + risk filter (All / At-Risk / On-Track)
+- `frontend/src/pages/Dashboard.jsx` — Replaced "DBSCAN Clusters / Cluster Models" stat cards with ROC-AUC and Regression MAE
+
+---
+
 ```
 MTP/                                  <- PROJECT ROOT (always work from here)
 │
 ├── data/
 │   ├── final_preprocessed_data.csv  # 86,478 rows · 219 cols · balanced 50/50
 │   ├── feedback.csv                  # Accumulates POST /feedback outcomes (header-only at start)
-│   └── feedback_archive.csv          # Archived feedback rows after each incremental update
+│   ├── feedback_archive.csv          # Archived feedback rows after each incremental update
+│   └── opensky_collected.csv         # Daily OpenSky domestic flight records (CI-collected)
 │
 ├── model/                            # Trained artifacts — never edit manually
 │   ├── lgbm_clf.pkl                  # LGBMClassifier (raw, used for warm-start)
@@ -63,6 +76,7 @@ MTP/                                  <- PROJECT ROOT (always work from here)
 ├── frontend/                         # React 18 + Vite + Tailwind (dark theme)
 │   ├── index.html
 │   ├── package.json
+│   ├── vercel.json                   # SPA routing rewrites — REQUIRED for Vercel page navigation
 │   ├── vite.config.js                # Proxy /api -> http://localhost:8000
 │   ├── tailwind.config.js
 │   ├── postcss.config.js
@@ -81,6 +95,7 @@ MTP/                                  <- PROJECT ROOT (always work from here)
 │
 ├── train_lgbm.py                     # Sprint 7 full training (replaces train.py + train_regressor.py)
 ├── train_incremental.py              # Warm-start LightGBM update on feedback rows
+├── collect_opensky_data.py           # Daily OpenSky domestic flight data collector (runs in CI)
 ├── predict.py                        # FlightPredictor class v3 (LightGBM, used by the API)
 ├── train.py                          # SUPERSEDED — old DBSCAN+RF classification training
 ├── train_regressor.py                # SUPERSEDED — old HistGBR regression training
@@ -264,6 +279,18 @@ python train_incremental.py
 # 5. Run all tests (26 tests)
 pytest tests/ -v
 ```
+
+---
+
+## Known Issues / Gotchas
+
+- **OpenSky rate limit:** The free OpenSky API allows ~1 request per 10 seconds for anonymous access. `collect_opensky_data.py` sleeps 10 s between airports. In CI the step is `continue-on-error: true` so a rate-limit doesn't fail the retrain.
+- **OpenSky doesn't provide scheduled times:** So exact delay labels can't be computed from OpenSky alone. Use BTS On-Time Performance monthly data for ground-truth labeling.
+- **Render free tier cold starts:** The API can take ~30 s to wake up after inactivity. The frontend shows a loading state but users may see a delay on first prediction.
+- **`KNOWN_DEST_CITIES` was previously only 19 cities** (now fixed to match KNOWN_ORIGIN_CITIES). If you add new cities, update `KNOWN_ORIGIN_CITIES`, `KNOWN_DEST_CITIES`, and `AIRPORT_COORDS` in `Home.jsx` together.
+- **`vercel.json` must stay in `frontend/`** — without it, refreshing any page other than `/` returns Vercel 404.
+- **Dashboard stat cards** previously showed "DBSCAN Clusters" / "Cluster Models" from Sprint 1. Now show ROC-AUC and Regression MAE. If info endpoint changes shape, update Dashboard.jsx stat cards accordingly.
+- **Google Flights API:** No free official API exists. Options: SerpAPI (~100 free searches/month), Amadeus (~2000 free calls/month). Not yet implemented — see IMPLEMENTATION_TODO.md.
 
 ---
 

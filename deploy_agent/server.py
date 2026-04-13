@@ -13,7 +13,12 @@ Claude Code registers this via ~/.claude/settings.json mcpServers config.
 
 import asyncio
 import json
+import sys
 from pathlib import Path
+
+# Ensure the MTP project root is on sys.path so `deploy_agent.*` imports work
+# regardless of how the script is invoked (python server.py vs python -m ...)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mcp.server.fastmcp import FastMCP
 

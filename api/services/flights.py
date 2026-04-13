@@ -243,8 +243,15 @@ KNOWN_ORIGIN_CITIES = [
 ]
 
 KNOWN_DEST_CITIES = [
-    "baltimore", "boston", "charlotte", "chicago", "dallas", "dallas-fort worth",
-    "fort lauderdale", "houston", "miami", "nashville", "new york", "newark",
-    "orlando", "panama city", "philadelphia", "san juan", "st. louis", "tampa",
-    "washington",
+    "new york", "chicago", "los angeles", "dallas", "dallas-fort worth", "houston",
+    "atlanta", "miami", "boston", "seattle", "denver", "phoenix", "las vegas",
+    "san francisco", "orlando", "washington", "philadelphia", "nashville",
+    "charlotte", "minneapolis", "detroit", "baltimore", "tampa", "portland",
+    "salt lake city", "san diego", "san jose", "oakland", "newark",
+    "fort lauderdale", "west palm beach", "kansas city", "st. louis",
+    "memphis", "new orleans", "cincinnati", "cleveland", "pittsburgh",
+    "buffalo", "rochester", "indianapolis", "columbus", "dayton",
+    "louisville", "richmond", "norfolk", "raleigh-durham", "greensboro",
+    "jacksonville", "fort myers", "sarasota", "honolulu", "san juan",
+    "san antonio", "austin", "panama city",
 ]

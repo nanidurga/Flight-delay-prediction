@@ -59,12 +59,16 @@ function GlobeView({ flights, onSelect }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 export default function LiveMap() {
-  const [flights,   setFlights]   = useState([])
-  const [loading,   setLoading]   = useState(false)
-  const [lastFetch, setLastFetch] = useState(null)
-  const [error,     setError]     = useState(null)
-  const [selected,  setSelected]  = useState(null)
-  const [viewMode,  setViewMode]  = useState('map')   // 'map' | 'globe'
+  const [flights,    setFlights]    = useState([])
+  const [loading,    setLoading]    = useState(false)
+  const [lastFetch,  setLastFetch]  = useState(null)
+  const [error,      setError]      = useState(null)
+  const [selected,   setSelected]   = useState(null)
+  const [viewMode,   setViewMode]   = useState('map')   // 'map' | 'globe'
+  const [search,       setSearch]       = useState('')
+  const [riskFilter,   setRiskFilter]   = useState('all')   // 'all' | 'delayed' | 'ontime'
+  const [filterOrigin, setFilterOrigin] = useState('')
+  const [filterDest,   setFilterDest]   = useState('')
 
   const fetchFlights = useCallback(async () => {
     setLoading(true); setError(null)
@@ -81,8 +85,14 @@ export default function LiveMap() {
 
   useEffect(() => { fetchFlights() }, [fetchFlights])
 
-  const delayed = flights.filter(f =>  f.prediction?.delayed)
-  const ontime  = flights.filter(f => !f.prediction?.delayed)
+  const visibleFlights = flights.filter(f => {
+    if (search && !f.callsign?.toLowerCase().includes(search.toLowerCase())) return false
+    if (riskFilter === 'delayed' && !f.prediction?.delayed) return false
+    if (riskFilter === 'ontime'  &&  f.prediction?.delayed) return false
+    if (filterOrigin && !f.origin?.toLowerCase().includes(filterOrigin.toLowerCase())) return false
+    if (filterDest   && !f.destination?.toLowerCase().includes(filterDest.toLowerCase())) return false
+    return true
+  })
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 4rem)', background: '#020617' }}>
@@ -105,13 +115,62 @@ export default function LiveMap() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Stats */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* City-pair filter */}
+          <input
+            type="text"
+            value={filterOrigin}
+            onChange={e => setFilterOrigin(e.target.value)}
+            placeholder="From city…"
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 border border-white/10
+                       text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500/60 w-24"
+          />
+          <input
+            type="text"
+            value={filterDest}
+            onChange={e => setFilterDest(e.target.value)}
+            placeholder="To city…"
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 border border-white/10
+                       text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500/60 w-24"
+          />
+          {/* Callsign search */}
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Callsign…"
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 border border-white/10
+                       text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500/60 w-24"
+          />
+          {/* Risk filter */}
+          <div
+            className="flex items-center rounded-xl p-0.5 gap-0.5"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            {[
+              { id: 'all',     label: 'All'      },
+              { id: 'delayed', label: '⚠ At-Risk' },
+              { id: 'ontime',  label: '✓ On-Track'},
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setRiskFilter(f.id)}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200"
+                style={riskFilter === f.id ? {
+                  background: 'linear-gradient(135deg,#2563eb,#4f46e5)',
+                  color: 'white',
+                } : { color: '#94a3b8' }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {/* Stats (reflect current filter) */}
           <span className="flex items-center gap-1 text-xs text-red-400 font-medium">
-            <AlertTriangle size={11}/> {delayed.length} at-risk
+            <AlertTriangle size={11}/> {visibleFlights.filter(f => f.prediction?.delayed).length} at-risk
           </span>
           <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
-            <CheckCircle size={11}/> {ontime.length} on-track
+            <CheckCircle size={11}/> {visibleFlights.filter(f => !f.prediction?.delayed).length} on-track
           </span>
 
           {/* View toggle */}
@@ -179,7 +238,7 @@ export default function LiveMap() {
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 attribution='&copy; OpenStreetMap'
               />
-              {flights.map(f => {
+              {visibleFlights.map(f => {
                 const isDelayed = f.prediction?.delayed
                 const prob      = f.prediction?.probability ?? 0.5
                 return (
@@ -215,7 +274,7 @@ export default function LiveMap() {
             </MapContainer>
           ) : (
             <div style={{ width: '100%', height: '100%' }}>
-              <GlobeView flights={flights} onSelect={setSelected}/>
+              <GlobeView flights={visibleFlights} onSelect={setSelected}/>
             </div>
           )}
         </div>
@@ -229,14 +288,14 @@ export default function LiveMap() {
             className="px-3 py-2.5 text-[10px] text-slate-500 font-semibold uppercase tracking-widest flex-shrink-0"
             style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
           >
-            {flights.length} Aircraft Tracked
+            {visibleFlights.length} / {flights.length} Aircraft
           </div>
 
           {flights.length === 0 && !loading && (
             <p className="p-4 text-slate-500 text-sm text-center">No data — click Refresh.</p>
           )}
 
-          {flights.map(f => {
+          {visibleFlights.map(f => {
             const isDelayed = f.prediction?.delayed
             const prob      = f.prediction?.probability ?? 0.5
             const isSelected = selected?.icao24 === f.icao24
