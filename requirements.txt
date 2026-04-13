@@ -1,0 +1,21 @@
+# Python dependencies for MTP Flight Delay Predictor
+# Install: pip install -r requirements.txt
+
+# ML
+scikit-learn
+lightgbm>=4.0.0
+pytest
+joblib
+numpy
+pandas
+scipy
+hdbscan
+matplotlib
+seaborn
+
+# API
+fastapi
+uvicorn[standard]
+httpx
+python-dotenv
+pydantic
