@@ -14,6 +14,7 @@ Run with:  uvicorn api.main:app --reload   (from MTP root)
 
 import asyncio
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -37,6 +38,7 @@ from api.services.flights import (
 )
 
 FEEDBACK_PATH = Path(__file__).parent.parent / "data" / "feedback.csv"
+_feedback_lock = threading.Lock()
 
 # ─────────────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -359,30 +361,35 @@ def record_feedback(fb: FeedbackInput):
     Appends one row to data/feedback.csv for nightly incremental retraining.
     Idempotent: duplicate flight_id values are silently ignored.
     """
-    # Read existing flight IDs to detect duplicates
-    if FEEDBACK_PATH.exists():
-        with open(FEEDBACK_PATH, newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            next(reader, None)   # skip header
-            existing_ids = {row[0] for row in reader if row}
-        if fb.flight_id in existing_ids:
+    try:
+        with _feedback_lock:
+            # Read existing flight IDs to detect duplicates
+            if FEEDBACK_PATH.exists():
+                with open(FEEDBACK_PATH, newline="", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    next(reader, None)   # skip header
+                    existing_ids = {row[0] for row in reader if row}
+                if fb.flight_id in existing_ids:
+                    count = max(0, sum(1 for _ in open(FEEDBACK_PATH, encoding="utf-8")) - 1)
+                    return {"status": "duplicate_ignored", "feedback_count": count}
+
+            # Append new row
+            write_header = (not FEEDBACK_PATH.exists() or
+                            FEEDBACK_PATH.stat().st_size == 0)
+            with open(FEEDBACK_PATH, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                if write_header:
+                    writer.writerow(["flight_id", "timestamp",
+                                     "actual_delayed", "actual_delay_min"])
+                writer.writerow([
+                    fb.flight_id,
+                    datetime.utcnow().isoformat(),
+                    int(fb.actual_delayed),
+                    fb.actual_delay_min,
+                ])
+
             count = max(0, sum(1 for _ in open(FEEDBACK_PATH, encoding="utf-8")) - 1)
-            return {"status": "duplicate_ignored", "feedback_count": count}
-
-    # Append new row
-    write_header = (not FEEDBACK_PATH.exists() or
-                    FEEDBACK_PATH.stat().st_size == 0)
-    with open(FEEDBACK_PATH, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if write_header:
-            writer.writerow(["flight_id", "timestamp",
-                              "actual_delayed", "actual_delay_min"])
-        writer.writerow([
-            fb.flight_id,
-            datetime.utcnow().isoformat(),
-            int(fb.actual_delayed),
-            fb.actual_delay_min,
-        ])
-
-    count = max(0, sum(1 for _ in open(FEEDBACK_PATH, encoding="utf-8")) - 1)
-    return {"status": "recorded", "feedback_count": count}
+            return {"status": "recorded", "feedback_count": count}
+    except OSError as exc:
+        raise HTTPException(status_code=500,
+                            detail=f"Could not write feedback: {exc}") from exc
