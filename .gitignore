@@ -1,6 +1,16 @@
 # Git worktrees
 .worktrees/
 
+# Deploy agent secrets
+deploy_agent/.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# Jupyter
+.ipynb_checkpoints/
+
 # Python
 __pycache__/
 *.py[cod]
