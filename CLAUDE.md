@@ -5,6 +5,24 @@ Goal: Predict US flight delays using ML and serve predictions via a real-time we
 
 ---
 
+## Live Deployment (Sprint 8 — Deployed 2026-04-13)
+
+| Service | URL | Platform |
+|---------|-----|----------|
+| Backend API | https://mtp-flight-api.onrender.com | Render (free tier, Python) |
+| Frontend | https://mtp-flight-delay-exaj8moop-durgas-projects-9ea2fbeb.vercel.app | Vercel |
+| GitHub Repo | https://github.com/nanidurga/Flight-delay-prediction | master branch |
+
+**Render service ID:** `srv-d7eh888sfn5c73d07o1g`
+**Vercel project ID:** `prj_nNItwgRGGIDD4udXJVkB7nnLRyAW`
+
+The frontend `VITE_API_URL` env var is set to the Render backend URL.
+Render auto-deploys on every push to `master`. Vercel auto-deploys via the GitHub integration.
+
+To redeploy manually, trigger via `deploy_agent` MCP tools or the Render/Vercel dashboards.
+
+---
+
 ## Folder Structure
 
 ```
@@ -260,6 +278,7 @@ pytest tests/ -v
 | 5 — Quantification | Done | Regression model for delay minutes, delay_category, delay_breakdown by type |
 | 6 — Regression v2 | Done | HistGBR pipeline: 210 features, 7 historical features, quantile p10/p90, per-type regressors |
 | 7 — LightGBM + Incremental | Done | Full LightGBM pipeline, 218 features, 91.34% accuracy, POST /feedback, nightly GitHub Actions |
+| 8 — Cloud Deployment | Done | deploy_agent MCP server, Render (FastAPI backend) + Vercel (React frontend), auto-deploy on push |
 
 ---
 
