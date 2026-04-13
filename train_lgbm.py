@@ -98,10 +98,10 @@ X_te_df  = pd.DataFrame(X_raw.values[idx_test],   columns=feature_names)
 
 y_tr_status  = y_status[idx_train];   y_val_status = y_status[idx_val];   y_te_status = y_status[idx_test]
 y_tr_total   = y_total[idx_train];    y_val_total  = y_total[idx_val];    y_te_total  = y_total[idx_test]
-y_tr_carrier = y_carrier[idx_train];  y_te_carrier = y_carrier[idx_test]
-y_tr_weather = y_weather[idx_train];  y_te_weather = y_weather[idx_test]
-y_tr_nas     = y_nas[idx_train];      y_te_nas     = y_nas[idx_test]
-y_tr_late    = y_late_ac[idx_train];  y_te_late    = y_late_ac[idx_test]
+y_tr_carrier = y_carrier[idx_train];  y_val_carrier = y_carrier[idx_val];  y_te_carrier = y_carrier[idx_test]
+y_tr_weather = y_weather[idx_train];  y_val_weather = y_weather[idx_val];  y_te_weather = y_weather[idx_test]
+y_tr_nas     = y_nas[idx_train];      y_val_nas     = y_nas[idx_val];      y_te_nas     = y_nas[idx_test]
+y_tr_late    = y_late_ac[idx_train];  y_val_late    = y_late_ac[idx_val];  y_te_late    = y_late_ac[idx_test]
 
 # ── 3. FEATURE ENGINEERING ────────────────────────────────────────────────────
 print(f"\nSTEP 3 — Feature engineering (fit on train fold only)")
@@ -200,15 +200,17 @@ joblib.dump(reg_p90, MODEL_DIR / "lgbm_reg_p90.pkl")
 # Per-type regressors
 TYPE_BASE = {**REG_BASE, "n_estimators": 500, "max_depth": 6}
 type_targets = {
-    "carrier":       (y_tr_carrier[tr_delayed],   y_te_carrier[te_delayed]),
-    "weather":       (y_tr_weather[tr_delayed],   y_te_weather[te_delayed]),
-    "nas":           (y_tr_nas[tr_delayed],        y_te_nas[te_delayed]),
-    "late_aircraft": (y_tr_late[tr_delayed],       y_te_late[te_delayed]),
+    "carrier":       (y_tr_carrier[tr_delayed],   y_val_carrier[val_delayed],   y_te_carrier[te_delayed]),
+    "weather":       (y_tr_weather[tr_delayed],   y_val_weather[val_delayed],   y_te_weather[te_delayed]),
+    "nas":           (y_tr_nas[tr_delayed],        y_val_nas[val_delayed],       y_te_nas[te_delayed]),
+    "late_aircraft": (y_tr_late[tr_delayed],       y_val_late[val_delayed],      y_te_late[te_delayed]),
 }
 type_regressors = {}
-for name, (y_tr_t, y_te_t) in type_targets.items():
+for name, (y_tr_t, y_val_t, y_te_t) in type_targets.items():
     rg = LGBMRegressor(objective="regression", **TYPE_BASE)
-    rg.fit(X_tr_d, np.log1p(y_tr_t))
+    rg.fit(X_tr_d, np.log1p(y_tr_t),
+           eval_set=[(X_val_d, np.log1p(y_val_t))],
+           callbacks=[early_stopping(30, verbose=False)])
     tp  = np.clip(np.expm1(rg.predict(X_te_d)), 0, 800)
     t_mae   = mean_absolute_error(y_te_t, tp)
     t_medae = median_absolute_error(y_te_t, tp)
