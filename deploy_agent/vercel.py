@@ -93,7 +93,17 @@ class VercelClient:
         except httpx.HTTPStatusError as exc:
             raise VercelError(f"create_deploy_hook failed: {exc}") from exc
 
-        return resp.json()["hook"]["url"]
+        data = resp.json()
+        # Vercel returns the updated project object; hooks are in link.deployHooks or deployHooks
+        hooks = (
+            data.get("link", {}).get("deployHooks")
+            or data.get("deployHooks")
+            or []
+        )
+        if not hooks:
+            raise VercelError("create_deploy_hook: no hooks found in response")
+        # Return the URL of the most recently created hook
+        return sorted(hooks, key=lambda h: h.get("createdAt", 0))[-1]["url"]
 
     async def trigger_via_hook(self, hook_url: str) -> str:
         """POST to a deploy hook URL to trigger a deployment. Returns job_id."""

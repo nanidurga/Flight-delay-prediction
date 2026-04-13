@@ -22,23 +22,42 @@ class RenderClient:
             "Content-Type": "application/json",
         }
 
+    async def _get_owner_id(self) -> str:
+        """Fetch the first owner (user or team) ID for this API key."""
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(
+                    f"{RENDER_API}/owners",
+                    headers=self._headers,
+                )
+                resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RenderError(f"get_owner_id failed: {exc}") from exc
+        owners = resp.json()
+        if not owners:
+            raise RenderError("No owners found for this Render API key.")
+        return owners[0]["owner"]["id"]
+
     async def create_service(self, github_repo: str, service_name: str) -> dict:
         """
         Create a new Render web service linked to a GitHub repo.
 
         Returns {"service_id": str, "deploy_id": str}
         """
+        owner_id = await self._get_owner_id()
         payload = {
             "type": "web_service",
             "name": service_name,
-            "ownerId": None,
+            "ownerId": owner_id,
             "serviceDetails": {
                 "runtime": "python",
-                "buildCommand": "pip install -r requirements.txt",
-                "startCommand": "uvicorn api.main:app --host 0.0.0.0 --port $PORT",
-                "envVars": [{"key": "PYTHON_VERSION", "value": "3.11.0"}],
                 "plan": "free",
                 "region": "oregon",
+                "envSpecificDetails": {
+                    "buildCommand": "pip install -r requirements.txt",
+                    "startCommand": "uvicorn api.main:app --host 0.0.0.0 --port $PORT",
+                },
+                "envVars": [{"key": "PYTHON_VERSION", "value": "3.11.0"}],
             },
             "repo": f"https://github.com/{github_repo}",
             "branch": "master",
@@ -76,19 +95,21 @@ class RenderClient:
 
         return resp.json()["deploy"]["id"]
 
-    async def get_deploy(self, deploy_id: str) -> dict:
+    async def get_deploy(self, service_id: str, deploy_id: str) -> dict:
         """Return deploy info including status field."""
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(
-                    f"{RENDER_API}/deploys/{deploy_id}",
+                    f"{RENDER_API}/services/{service_id}/deploys/{deploy_id}",
                     headers=self._headers,
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RenderError(f"get_deploy failed: {exc}") from exc
 
-        return resp.json()["deploy"]
+        data = resp.json()
+        # API returns the deploy object directly (no "deploy" wrapper)
+        return data.get("deploy", data)
 
     async def get_service_status(self, service_id: str) -> dict:
         """Return service state and live URL."""
@@ -102,12 +123,21 @@ class RenderClient:
         except httpx.HTTPStatusError as exc:
             raise RenderError(f"get_service_status failed: {exc}") from exc
 
-        svc = resp.json()["service"]
+        data = resp.json()
+        # API returns the service object directly (no "service" wrapper)
+        svc = data.get("service", data)
         suspended = svc.get("suspended", "not_suspended")
+        details = svc.get("serviceDetails", {})
+        # URL may be at serviceDetails.url or serviceDetails.serviceDetails.url depending on API version
+        url = details.get("url") or details.get("serviceDetails", {}).get("url", "")
+        # Fallback: derive from service slug
+        if not url:
+            slug = svc.get("slug", "")
+            url = f"https://{slug}.onrender.com" if slug else ""
         return {
             "service_id": service_id,
             "state": "suspended" if suspended == "suspended" else "live",
-            "url": svc.get("serviceDetails", {}).get("url", ""),
+            "url": url,
         }
 
     async def get_logs(self, service_id: str, tail: int = 100) -> list[str]:

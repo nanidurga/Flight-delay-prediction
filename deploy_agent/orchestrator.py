@@ -79,7 +79,7 @@ async def _wait_for_render_deploy(
     terminal = {"live", "failed", "canceled", "deactivated"}
 
     for _ in range(timeout_polls):
-        deploy = await render.get_deploy(deploy_id)
+        deploy = await render.get_deploy(service_id, deploy_id)
         status = deploy.get("status", "")
         if status == "live":
             svc = await render.get_service_status(service_id)

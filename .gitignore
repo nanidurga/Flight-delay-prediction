@@ -49,7 +49,7 @@ data/final_preprocessed_data.csv
 # Original source dir
 MTP_codes/
 
-# Large files
+# Large project-root files (not source code)
 *.pdf
 *.pptx
-*.html
+CLOUD_DEPLOYMENT_GUIDE.html
