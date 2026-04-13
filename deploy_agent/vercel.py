@@ -124,9 +124,9 @@ class VercelClient:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(
-                    f"{VERCEL_API}/v9/projects/{project_id}/deployments",
+                    f"{VERCEL_API}/v6/deployments",
                     headers=self._headers,
-                    params={"limit": 1},
+                    params={"projectId": project_id, "limit": 1},
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
