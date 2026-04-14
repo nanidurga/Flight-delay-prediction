@@ -4,8 +4,18 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-sans;
+    @apply bg-slate-950 text-slate-100;
     background: #020617;
+    font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  h1, h2 {
+    font-family: 'Oxanium', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* JetBrains Mono for all monospace elements (callsigns, numbers, code) */
+  code, kbd, samp, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
   }
 
   /* Custom scrollbar */

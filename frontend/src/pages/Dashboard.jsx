@@ -146,12 +146,32 @@ export default function Dashboard() {
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* Selected features */}
+      {/* Engineered features */}
       <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-        <h3 className="font-semibold text-slate-300 mb-4">Top 20 ANOVA Features</h3>
+        <h3 className="font-semibold text-slate-300 mb-1">LightGBM Feature Engineering</h3>
+        <p className="text-slate-500 text-xs mb-4">
+          15 historical statistics computed by <code className="text-blue-300 bg-slate-800 px-1 rounded">FeatureEngineer</code> and
+          appended to 203 pre-flight columns → 218 total features fed to LGBMClassifier.
+        </p>
         <div className="flex flex-wrap gap-2">
-          {info.selected_features.map(f => (
-            <span key={f} className="bg-slate-800 text-slate-300 text-xs px-3 py-1 rounded-full">
+          {[
+            'carrier_hist_mean_delay',
+            'carrier_hist_delay_rate',
+            'origin_hist_mean_delay',
+            'origin_hist_delay_rate',
+            'dest_hist_mean_delay',
+            'depslot_hist_mean_delay',
+            'month_hist_mean_delay',
+            'route_hist_mean_delay',
+            'route_hist_delay_rate',
+            'route_hist_n_flights',
+            'carrier_origin_hist_mean_delay',
+            'carrier_month_hist_mean_delay',
+            'depslot_origin_hist_mean_delay',
+            'origin_weather_severity',
+            'dest_weather_severity',
+          ].map(f => (
+            <span key={f} className="bg-slate-800 text-slate-300 text-xs px-3 py-1 rounded-full font-mono">
               {f}
             </span>
           ))}

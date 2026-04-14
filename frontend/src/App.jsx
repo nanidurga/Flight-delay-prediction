@@ -22,7 +22,7 @@ export default function App() {
         className="text-center text-slate-600 text-xs py-4"
         style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(2,6,23,0.9)' }}
       >
-        MTP · Flight Delay Predictor · 21MA23002 · Cluster-then-Classify Pipeline
+        MTP · FlightSense · 21MA23002 · LightGBM · 91.34% Accuracy
       </footer>
     </div>
   )

@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import { getLiveFlights } from '../api'
-import { RefreshCw, AlertTriangle, CheckCircle, Wifi, Globe2, Map } from 'lucide-react'
+import { RefreshCw, AlertTriangle, CheckCircle, Wifi, Globe2, Map, Plane } from 'lucide-react'
 
 // ── Lazy-load the heavy globe ──────────────────────────────────────────────
 const GlobeGL = React.lazy(() => import('react-globe.gl'))
 
-// ── Globe wrapper component ────────────────────────────────────────────────
+// ── Globe wrapper ──────────────────────────────────────────────────────────
 function GlobeView({ flights, onSelect }) {
   const globeRef = useRef()
 
-  // Auto-aim to US on mount
   useEffect(() => {
     if (globeRef.current) {
       globeRef.current.pointOfView({ lat: 38, lng: -96, altitude: 1.6 }, 800)
@@ -19,18 +18,18 @@ function GlobeView({ flights, onSelect }) {
 
   const points = flights.map(f => ({
     ...f,
-    lat    : f.lat,
-    lng    : f.lon,
-    color  : f.prediction?.delayed ? '#ef4444' : '#22c55e',
-    size   : f.prediction?.delayed ? 0.45 : 0.28,
-    label  : `${f.callsign || '?'} · ${f.prediction?.delayed ? 'Delay Risk' : 'On Track'} · ${Math.round((f.prediction?.probability ?? 0.5) * 100)}%`,
+    lat  : f.lat,
+    lng  : f.lon,
+    color: f.prediction?.delayed ? '#ef4444' : '#22c55e',
+    size : f.prediction?.delayed ? 0.45 : 0.28,
+    label: `${f.callsign || '?'} · ${f.prediction?.delayed ? 'Delay Risk' : 'On Track'} · ${Math.round((f.prediction?.probability ?? 0.5) * 100)}%`,
   }))
 
   return (
     <Suspense
       fallback={
-        <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
-          Loading globe...
+        <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+          Loading 3D globe…
         </div>
       }
     >
@@ -57,39 +56,81 @@ function GlobeView({ flights, onSelect }) {
   )
 }
 
+// ── Loading overlay shown over the map while fetching ─────────────────────
+function LoadingOverlay({ isFirstLoad }) {
+  return (
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center"
+      style={{ background: 'rgba(2,6,23,0.92)', backdropFilter: 'blur(4px)', zIndex: 9999 }}
+    >
+      <div className="flex flex-col items-center gap-5">
+        <div className="relative w-20 h-20">
+          <span className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" />
+          <span
+            className="absolute inset-3 rounded-full bg-blue-400/15 animate-ping"
+            style={{ animationDelay: '0.5s' }}
+          />
+          <div
+            className="relative w-20 h-20 rounded-full flex items-center justify-center"
+            style={{ border: '1px solid rgba(59,130,246,0.4)', background: 'rgba(59,130,246,0.08)' }}
+          >
+            <Plane size={28} className="text-blue-400" style={{ transform: 'rotate(45deg)' }} />
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-white font-semibold text-sm tracking-wide">Fetching live flights…</p>
+          <p className="text-slate-500 text-xs mt-1.5 max-w-[220px] leading-relaxed">
+            {isFirstLoad
+              ? 'First load may take ~30 s while the backend wakes up'
+              : 'Refreshing flight positions'}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 export default function LiveMap() {
-  const [flights,    setFlights]    = useState([])
-  const [loading,    setLoading]    = useState(false)
-  const [lastFetch,  setLastFetch]  = useState(null)
-  const [error,      setError]      = useState(null)
-  const [selected,   setSelected]   = useState(null)
-  const [viewMode,   setViewMode]   = useState('map')   // 'map' | 'globe'
+  const [flights,      setFlights]      = useState([])
+  const [loading,      setLoading]      = useState(false)
+  const [lastFetch,    setLastFetch]    = useState(null)
+  const [error,        setError]        = useState(null)
+  const [selected,     setSelected]     = useState(null)
+  const [viewMode,     setViewMode]     = useState('map')
   const [search,       setSearch]       = useState('')
-  const [riskFilter,   setRiskFilter]   = useState('all')   // 'all' | 'delayed' | 'ontime'
+  const [riskFilter,   setRiskFilter]   = useState('all')
   const [filterOrigin, setFilterOrigin] = useState('')
   const [filterDest,   setFilterDest]   = useState('')
 
   const fetchFlights = useCallback(async () => {
-    setLoading(true); setError(null)
+    setLoading(true)
+    setError(null)
     try {
       const data = await getLiveFlights(60)
       setFlights(data.flights || [])
       setLastFetch(new Date())
     } catch {
-      setError('Could not reach OpenSky. It may be rate-limited — try again in 30 s.')
+      setError('Could not load flights. The server may be starting up or OpenSky may be rate-limited — try again in 30 s.')
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Fetch on mount
   useEffect(() => { fetchFlights() }, [fetchFlights])
 
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    const id = setInterval(fetchFlights, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [fetchFlights])
+
   const visibleFlights = flights.filter(f => {
-    if (search && !f.callsign?.toLowerCase().includes(search.toLowerCase())) return false
-    if (riskFilter === 'delayed' && !f.prediction?.delayed) return false
-    if (riskFilter === 'ontime'  &&  f.prediction?.delayed) return false
-    if (filterOrigin && !f.origin?.toLowerCase().includes(filterOrigin.toLowerCase())) return false
+    if (search       && !f.callsign?.toLowerCase().includes(search.toLowerCase()))        return false
+    if (riskFilter === 'delayed' && !f.prediction?.delayed)                               return false
+    if (riskFilter === 'ontime'  &&  f.prediction?.delayed)                               return false
+    if (filterOrigin && !f.origin?.toLowerCase().includes(filterOrigin.toLowerCase()))    return false
     if (filterDest   && !f.destination?.toLowerCase().includes(filterDest.toLowerCase())) return false
     return true
   })
@@ -104,8 +145,8 @@ export default function LiveMap() {
       >
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"/>
-            <Wifi size={14} className="text-blue-400"/>
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <Wifi size={14} className="text-blue-400" />
           </div>
           <span className="font-semibold text-sm text-white">Live Flights</span>
           {lastFetch && (
@@ -116,7 +157,7 @@ export default function LiveMap() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* City-pair filter */}
+          {/* City-pair filters */}
           <input
             type="text"
             value={filterOrigin}
@@ -148,9 +189,9 @@ export default function LiveMap() {
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             {[
-              { id: 'all',     label: 'All'      },
-              { id: 'delayed', label: '⚠ At-Risk' },
-              { id: 'ontime',  label: '✓ On-Track'},
+              { id: 'all',     label: 'All'       },
+              { id: 'delayed', label: '⚠ At-Risk'  },
+              { id: 'ontime',  label: '✓ On-Track' },
             ].map(f => (
               <button
                 key={f.id}
@@ -165,22 +206,21 @@ export default function LiveMap() {
               </button>
             ))}
           </div>
-          {/* Stats (reflect current filter) */}
+          {/* Flight counts */}
           <span className="flex items-center gap-1 text-xs text-red-400 font-medium">
-            <AlertTriangle size={11}/> {visibleFlights.filter(f => f.prediction?.delayed).length} at-risk
+            <AlertTriangle size={11} /> {visibleFlights.filter(f => f.prediction?.delayed).length} at-risk
           </span>
           <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
-            <CheckCircle size={11}/> {visibleFlights.filter(f => !f.prediction?.delayed).length} on-track
+            <CheckCircle size={11} /> {visibleFlights.filter(f => !f.prediction?.delayed).length} on-track
           </span>
-
           {/* View toggle */}
           <div
             className="flex items-center rounded-xl p-0.5 gap-0.5"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             {[
-              { id: 'map',   icon: <Map    size={13}/>, label: 'Map'   },
-              { id: 'globe', icon: <Globe2 size={13}/>, label: 'Globe' },
+              { id: 'map',   icon: <Map    size={13} />, label: 'Map'   },
+              { id: 'globe', icon: <Globe2 size={13} />, label: 'Globe' },
             ].map(v => (
               <button
                 key={v.id}
@@ -190,15 +230,12 @@ export default function LiveMap() {
                   background: 'linear-gradient(135deg,#2563eb,#4f46e5)',
                   color: 'white',
                   boxShadow: '0 0 12px rgba(99,102,241,0.4)',
-                } : {
-                  color: '#94a3b8',
-                }}
+                } : { color: '#94a3b8' }}
               >
                 {v.icon} {v.label}
               </button>
             ))}
           </div>
-
           {/* Refresh */}
           <button
             onClick={fetchFlights}
@@ -207,7 +244,7 @@ export default function LiveMap() {
                        hover:text-white disabled:opacity-40 transition-all duration-200"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''}/>
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -228,6 +265,22 @@ export default function LiveMap() {
 
         {/* Main view */}
         <div className="flex-1 relative overflow-hidden">
+
+          {/* Loading overlay — covers the entire map area */}
+          {loading && <LoadingOverlay isFirstLoad={!lastFetch} />}
+
+          {/* Empty state when no flights loaded yet */}
+          {!loading && flights.length === 0 && !error && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center z-10"
+              style={{ background: 'rgba(2,6,23,0.6)' }}
+            >
+              <Plane size={32} className="text-slate-600 mb-3" style={{ transform: 'rotate(45deg)' }} />
+              <p className="text-slate-400 text-sm font-medium">No flight data</p>
+              <p className="text-slate-600 text-xs mt-1">Click Refresh to load live flights</p>
+            </div>
+          )}
+
           {viewMode === 'map' ? (
             <MapContainer
               center={[39, -98]}
@@ -247,10 +300,10 @@ export default function LiveMap() {
                     center={[f.lat, f.lon]}
                     radius={isDelayed ? 7 : 5}
                     pathOptions={{
-                      color       : isDelayed ? '#ef4444' : '#22c55e',
-                      fillColor   : isDelayed ? '#ef444490' : '#22c55e90',
-                      fillOpacity : 0.85,
-                      weight      : 1.5,
+                      color      : isDelayed ? '#ef4444' : '#22c55e',
+                      fillColor  : isDelayed ? '#ef444490' : '#22c55e90',
+                      fillOpacity: 0.85,
+                      weight     : 1.5,
                     }}
                     eventHandlers={{ click: () => setSelected(f) }}
                   >
@@ -274,7 +327,7 @@ export default function LiveMap() {
             </MapContainer>
           ) : (
             <div style={{ width: '100%', height: '100%' }}>
-              <GlobeView flights={visibleFlights} onSelect={setSelected}/>
+              <GlobeView flights={visibleFlights} onSelect={setSelected} />
             </div>
           )}
         </div>
@@ -291,13 +344,13 @@ export default function LiveMap() {
             {visibleFlights.length} / {flights.length} Aircraft
           </div>
 
-          {flights.length === 0 && !loading && (
+          {!loading && flights.length === 0 && (
             <p className="p-4 text-slate-500 text-sm text-center">No data — click Refresh.</p>
           )}
 
           {visibleFlights.map(f => {
-            const isDelayed = f.prediction?.delayed
-            const prob      = f.prediction?.probability ?? 0.5
+            const isDelayed  = f.prediction?.delayed
+            const prob       = f.prediction?.probability ?? 0.5
             const isSelected = selected?.icao24 === f.icao24
             return (
               <div
@@ -306,8 +359,8 @@ export default function LiveMap() {
                 className="p-3 cursor-pointer transition-all duration-150 flex-shrink-0"
                 style={{
                   borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  background: isSelected ? 'rgba(37,99,235,0.12)' : undefined,
-                  borderLeft: isSelected ? '2px solid #3b82f6' : '2px solid transparent',
+                  background  : isSelected ? 'rgba(37,99,235,0.12)' : undefined,
+                  borderLeft  : isSelected ? '2px solid #3b82f6' : '2px solid transparent',
                 }}
                 onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
                 onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = undefined }}
@@ -337,14 +390,11 @@ export default function LiveMap() {
         </div>
       </div>
 
-      {/* ── Selected flight detail panel (bottom) ── */}
+      {/* ── Selected flight detail panel ── */}
       {selected && (
         <div
           className="flex-shrink-0 px-4 py-3 flex items-center justify-between gap-4"
-          style={{
-            background: 'rgba(15,23,42,0.95)',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-          }}
+          style={{ background: 'rgba(15,23,42,0.95)', borderTop: '1px solid rgba(255,255,255,0.06)' }}
         >
           <div className="flex items-center gap-3">
             <div
@@ -382,15 +432,15 @@ export default function LiveMap() {
         style={{ background: 'rgba(2,6,23,0.95)', borderTop: '1px solid rgba(255,255,255,0.04)' }}
       >
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"/>
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
           Delay Risk
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"/>
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
           On Track
         </span>
         <span className="ml-auto text-slate-700 hidden sm:block">
-          OpenSky · Open-Meteo · DBSCAN + RandomForest
+          OpenSky · Open-Meteo · LightGBM
         </span>
       </div>
     </div>
