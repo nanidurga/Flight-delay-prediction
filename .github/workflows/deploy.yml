@@ -1,0 +1,26 @@
+name: Deploy to Render on Push
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: none
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          if [ -z "${{ secrets.RENDER_API_KEY }}" ]; then
+            echo "ERROR: RENDER_API_KEY secret is not set."
+            exit 1
+          fi
+          curl -s --fail -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":"do_not_clear"}' \
+            "https://api.render.com/v1/services/srv-d7eh888sfn5c73d07o1g/deploys" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('Deploy triggered:', d.get('id','?'), '-', d.get('status','?'))"

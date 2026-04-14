@@ -64,15 +64,5 @@ jobs:
             git push
           fi
 
-      # 7. Trigger Render to reload the API with fresh model files.
-      #    Add RENDER_DEPLOY_HOOK_URL as a GitHub Actions secret.
-      #    See: Render dashboard → your service → Settings → Deploy Hook
-      - name: Trigger Render redeploy
-        if: steps.retrain.outcome == 'success'
-        run: |
-          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
-            curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-            echo "Render redeploy triggered."
-          else
-            echo "RENDER_DEPLOY_HOOK_URL not set — skipping redeploy."
-          fi
+      # 7. Render redeploy is handled automatically by deploy.yml,
+      #    which triggers on every push to master (including this retrain commit).
