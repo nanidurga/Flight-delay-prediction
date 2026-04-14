@@ -10,7 +10,7 @@ Goal: Predict US domestic flight delays using LightGBM and serve real-time predi
 | Service | URL | Platform |
 |---------|-----|----------|
 | Backend API | https://mtp-flight-api.onrender.com | Render (free tier, Python 3.11) |
-| Frontend | Vercel — URL changes each push (see Vercel dashboard for current) | Vercel |
+| Frontend | https://mtp-flight-delay.vercel.app | Vercel |
 | GitHub Repo | https://github.com/nanidurga/Flight-delay-prediction | master branch |
 
 **Render service ID:** `srv-d7eh888sfn5c73d07o1g`

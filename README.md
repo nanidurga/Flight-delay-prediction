@@ -9,7 +9,7 @@
 
 | Service | URL |
 |---------|-----|
-| Frontend | Vercel — auto-deploys on push; find current URL in [Vercel dashboard](https://vercel.com/durgas-projects-9ea2fbeb/mtp-flight-delay) |
+| Frontend | https://mtp-flight-delay.vercel.app |
 | Backend API | https://mtp-flight-api.onrender.com |
 | API Docs | https://mtp-flight-api.onrender.com/docs |
 
