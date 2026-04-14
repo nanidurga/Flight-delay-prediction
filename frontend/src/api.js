@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '/api' })
+// In production (Vercel) VITE_API_URL = https://mtp-flight-api.onrender.com
+// In local dev it is unset, so we fall back to the Vite proxy prefix '/api'
+const http = axios.create({ baseURL: import.meta.env.VITE_API_URL ?? '/api' })
 
 export const getModelInfo   = ()         => http.get('/model/info').then(r => r.data)
 export const getOptions     = ()         => http.get('/meta/options').then(r => r.data)

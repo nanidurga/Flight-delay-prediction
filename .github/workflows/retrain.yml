@@ -6,6 +6,9 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:   # Allow manual trigger from the GitHub Actions UI
 
+permissions:
+  contents: write          # needed for git push in the commit step
+
 jobs:
   retrain:
     runs-on: ubuntu-latest
@@ -53,9 +56,13 @@ jobs:
           git add model/lgbm_clf*.pkl model/metadata.pkl \
                   data/feedback.csv data/feedback_archive.csv \
                   data/opensky_collected.csv 2>/dev/null || true
-          git diff --staged --quiet \
-            || git commit -m "chore: incremental model update $(date +'%Y-%m-%d')"
-          git push
+          # Only commit + push when there is actually something staged
+          if git diff --staged --quiet; then
+            echo "Nothing changed — skipping commit and push."
+          else
+            git commit -m "chore: incremental model update $(date +'%Y-%m-%d')"
+            git push
+          fi
 
       # 7. Trigger Render to reload the API with fresh model files.
       #    Add RENDER_DEPLOY_HOOK_URL as a GitHub Actions secret.
