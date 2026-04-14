@@ -92,13 +92,17 @@ async def deploy_full_stack(
 @mcp.tool()
 async def render_get_logs(service_id: str = "") -> str:
     """
-    Fetch the last 100 lines of runtime logs from your Render backend service.
+    Show recent deploy events for your Render backend service.
+
+    Note: Render's REST API does not expose runtime application logs.
+    This tool returns the deploy event history (start/end/status) instead.
+    For live runtime logs, open: https://dashboard.render.com
 
     Args:
         service_id: Render service ID (e.g. "srv-xxxx").
                     Defaults to RENDER_SERVICE_ID from config if not provided.
 
-    Returns log lines as a newline-separated string.
+    Returns deploy event lines as a newline-separated string.
     """
     _check_config()
     sid = service_id or _default_service_id

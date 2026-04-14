@@ -69,19 +69,29 @@ async def test_get_service_status_returns_live_url(render_client):
 
 @pytest.mark.asyncio
 async def test_get_logs_returns_lines(render_client):
-    """get_logs returns list of log line strings."""
+    """get_logs returns preamble + deploy event lines (Render has no runtime log REST endpoint)."""
     mock_response = MagicMock()
     mock_response.status_code = 200
+    # Render /events response shape
     mock_response.json.return_value = [
-        {"message": "Starting server..."},
-        {"message": "Uvicorn running on 0.0.0.0:10000"},
+        {
+            "event": {
+                "type": "deploy_ended",
+                "timestamp": "2026-04-13T22:02:08.356617Z",
+                "details": {"deployStatus": "succeeded"},
+            },
+            "cursor": "abc",
+        },
     ]
     mock_response.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
         lines = await render_client.get_logs("srv-abc123")
 
-    assert lines == ["Starting server...", "Uvicorn running on 0.0.0.0:10000"]
+    # First lines are the preamble note; last line is the event entry
+    assert any("Render REST API" in l for l in lines)
+    assert any("deploy_ended" in l for l in lines)
+    assert any("succeeded" in l for l in lines)
 
 
 @pytest.mark.asyncio

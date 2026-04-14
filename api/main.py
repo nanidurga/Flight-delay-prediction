@@ -49,14 +49,16 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Allow the React frontend (running on a different port) to call this API
+# Allow the React frontend (running on a different port) to call this API.
+# Vercel generates a new hash URL on every push, so we use a regex to cover all
+# preview/production deployments under the mtp-flight-delay project.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://mtp-flight-delay-exaj8moop-durgas-projects-9ea2fbeb.vercel.app",
         "http://localhost:5173",
         "http://localhost:4173",   # vite preview
     ],
+    allow_origin_regex=r"https://mtp-flight-delay[^.]*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -374,7 +376,8 @@ def record_feedback(fb: FeedbackInput):
                     next(reader, None)   # skip header
                     existing_ids = {row[0] for row in reader if row}
                 if fb.flight_id in existing_ids:
-                    count = max(0, sum(1 for _ in open(FEEDBACK_PATH, encoding="utf-8")) - 1)
+                    with open(FEEDBACK_PATH, encoding="utf-8") as fh:
+                        count = max(0, sum(1 for _ in fh) - 1)
                     return {"status": "duplicate_ignored", "feedback_count": count}
 
             # Append new row
@@ -392,7 +395,8 @@ def record_feedback(fb: FeedbackInput):
                     fb.actual_delay_min,
                 ])
 
-            count = max(0, sum(1 for _ in open(FEEDBACK_PATH, encoding="utf-8")) - 1)
+            with open(FEEDBACK_PATH, encoding="utf-8") as fh:
+                count = max(0, sum(1 for _ in fh) - 1)
             return {"status": "recorded", "feedback_count": count}
     except OSError as exc:
         raise HTTPException(status_code=500,

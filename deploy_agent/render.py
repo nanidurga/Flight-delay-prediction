@@ -141,16 +141,38 @@ class RenderClient:
         }
 
     async def get_logs(self, service_id: str, tail: int = 100) -> list[str]:
-        """Return last `tail` log lines as a list of strings."""
+        """
+        Return recent activity for the service.
+
+        Render's v1 REST API does not expose a runtime log stream endpoint.
+        Runtime logs are only available via the Render dashboard.
+        This method returns the service's recent deploy events instead, which
+        shows deploy start/end, commit message, and status — useful for
+        verifying the last deployment.
+        """
+        lines: list[str] = [
+            "NOTE: Render REST API does not expose runtime logs.",
+            "      View live logs at: https://dashboard.render.com/web/"
+            + service_id + "/logs",
+            "",
+            "Recent deploy events:",
+        ]
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(
-                    f"{RENDER_API}/services/{service_id}/logs",
+                    f"{RENDER_API}/services/{service_id}/events",
                     headers=self._headers,
-                    params={"tail": tail},
+                    params={"limit": min(tail, 20)},
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RenderError(f"get_logs failed: {exc}") from exc
 
-        return [entry["message"] for entry in resp.json()]
+        for item in resp.json():
+            evt = item.get("event", item)
+            ts = evt.get("timestamp", "")[:19].replace("T", " ")
+            etype = evt.get("type", "")
+            details = evt.get("details", {})
+            status = details.get("deployStatus", "")
+            lines.append(f"  [{ts}] {etype}  status={status}")
+        return lines
