@@ -9,9 +9,11 @@
 
 | Service | URL |
 |---------|-----|
-| Frontend | https://mtp-flight-delay-exaj8moop-durgas-projects-9ea2fbeb.vercel.app |
+| Frontend | Vercel — auto-deploys on push; find current URL in [Vercel dashboard](https://vercel.com/durgas-projects-9ea2fbeb/mtp-flight-delay) |
 | Backend API | https://mtp-flight-api.onrender.com |
 | API Docs | https://mtp-flight-api.onrender.com/docs |
+
+> **Note:** Render free tier has ~30 s cold-start delay after inactivity. The first prediction may be slow.
 
 ---
 
@@ -30,7 +32,7 @@ FlightSense predicts whether a US domestic flight will be delayed before it depa
 
 | Predict Page | Dashboard | Live Map |
 |---|---|---|
-| Form → result panel with gauge, delay breakdown bar | Monthly/airline/weather/time-of-day charts | Leaflet dark map + 3D globe with live flights |
+| Form → result panel with probability gauge, delay breakdown bar | Monthly/airline/weather/time-of-day charts, model stats | Leaflet dark map + 3D globe with live flights coloured by risk |
 
 ---
 
@@ -40,10 +42,11 @@ FlightSense predicts whether a US domestic flight will be delayed before it depa
 ┌─────────────────────────────────────────────────────┐
 │                   React 18 + Vite                   │
 │   Predict · Dashboard · Live Map · About            │
+│   (Vercel CDN, auto-deploys on git push)            │
 └─────────────────────┬───────────────────────────────┘
-                      │ axios  /api/*
+                      │ axios  VITE_API_URL
 ┌─────────────────────▼───────────────────────────────┐
-│              FastAPI (Python 3.11)                  │
+│           FastAPI (Python 3.11, Render)             │
 │  /predict  /model/info  /flights/live               │
 │  /flights/weather  /meta/options  /stats/overview   │
 │  /feedback                                          │
@@ -175,9 +178,9 @@ Idempotent — duplicate `flight_id` values are silently ignored.
 
 | Page | Route | What's there |
 |------|-------|-------------|
-| Predict | `/` | Origin/dest/carrier form, departure time, date, probability gauge, delay breakdown bar, travel tips |
-| Dashboard | `/dashboard` | Recharts: delay by month, time-of-day, airline, weather; model accuracy stats |
-| Live Map | `/live` | Leaflet dark map + 3D globe; live OpenSky flights coloured by delay risk; callsign search; risk filter |
+| Predict | `/` | Origin/dest/carrier form, Haversine distance auto-fill, probability gauge, delay breakdown bar, travel tips |
+| Dashboard | `/dashboard` | Recharts: delay by month, time-of-day, airline, weather; ROC-AUC and MAE stat cards |
+| Live Map | `/live` | Leaflet dark map + 3D globe; live OpenSky flights coloured by delay risk; callsign search; risk filter (All/At-Risk/On-Track) |
 | About | `/about` | Pipeline diagram, data leakage explanation, real-time data sources |
 
 ---
@@ -202,7 +205,7 @@ npm install
 npm run dev
 # → http://localhost:5173
 
-# 4. Full retrain from scratch (~5-10 min, produces all model artifacts)
+# 4. Full retrain from scratch (~5-10 min, requires final_preprocessed_data.csv)
 pip install scikit-learn lightgbm joblib numpy pandas
 python train_lgbm.py
 
@@ -212,8 +215,8 @@ python train_incremental.py
 # 6. Collect yesterday's OpenSky flight data
 python collect_opensky_data.py
 
-# 7. Run all tests (26 tests)
-pytest tests/ -v
+# 7. Run all tests (49 tests)
+pytest tests/ deploy_agent/tests/ -v
 ```
 
 ---
@@ -223,7 +226,7 @@ pytest tests/ -v
 ```
 MTP/
 ├── api/
-│   ├── main.py                    FastAPI app — 8 endpoints
+│   ├── main.py                    FastAPI app — 8 endpoints, CORS regex for Vercel
 │   ├── requirements.txt
 │   └── services/
 │       ├── predictor.py           Singleton model loader
@@ -232,14 +235,22 @@ MTP/
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx                Router — 4 routes
-│   │   ├── api.js                 Axios client
+│   │   ├── api.js                 Axios client (uses VITE_API_URL in prod)
 │   │   ├── components/Navbar.jsx
 │   │   └── pages/
-│   │       ├── Home.jsx           Predict form + result panel
-│   │       ├── Dashboard.jsx      Charts
-│   │       ├── LiveMap.jsx        Leaflet map + 3D globe
+│   │       ├── Home.jsx           Predict form + result panel + Haversine distance
+│   │       ├── Dashboard.jsx      Charts + model stat cards
+│   │       ├── LiveMap.jsx        Leaflet map + 3D globe + callsign/risk filters
 │   │       └── About.jsx
 │   └── vercel.json                SPA routing rewrites (required for Vercel)
+├── deploy_agent/                  MCP server for Render/Vercel automation
+│   ├── server.py                  FastMCP server — 4 tools
+│   ├── render.py                  Render API client
+│   ├── vercel.py                  Vercel API client
+│   ├── orchestrator.py            Deployment orchestration logic
+│   ├── config.py                  Token loading from .env
+│   ├── .env                       Local secrets (gitignored)
+│   └── tests/                     23 pytest tests
 ├── model/
 │   ├── lgbm_clf.pkl               LGBMClassifier (raw, for warm-start)
 │   ├── lgbm_clf_calibrated.pkl    CalibratedClassifierCV (inference)
@@ -250,16 +261,16 @@ MTP/
 │   ├── feature_names.pkl          203 pre-flight column names
 │   └── metadata.pkl               Metrics + version + update counters
 ├── data/
-│   ├── final_preprocessed_data.csv   86,478 rows · 219 cols
-│   ├── feedback.csv                  POST /feedback accumulator
-│   ├── feedback_archive.csv          Archived after each update
+│   ├── final_preprocessed_data.csv   86,478 rows · 219 cols (gitignored, 41 MB)
+│   ├── feedback.csv                  POST /feedback accumulator (header-only at start)
+│   ├── feedback_archive.csv          Archived after each incremental update
 │   └── opensky_collected.csv         Daily OpenSky collector output
-├── .github/workflows/retrain.yml     Nightly retraining cron
-├── train_lgbm.py                     Full retrain script
-├── train_incremental.py              Warm-start update
-├── collect_opensky_data.py           Daily OpenSky data collector
-├── predict.py                        FlightPredictor class
-└── tests/                            26 pytest tests
+├── tests/                         26 pytest tests (core API, features, predictions)
+├── .github/workflows/retrain.yml  Nightly retraining cron (permissions: write)
+├── train_lgbm.py                  Full retrain script
+├── train_incremental.py           Warm-start update (requires 500 feedback rows)
+├── collect_opensky_data.py        Daily OpenSky data collector
+└── predict.py                     FlightPredictor class
 ```
 
 ---
@@ -268,14 +279,19 @@ MTP/
 
 | Platform | Service | Trigger |
 |----------|---------|---------|
-| Render (free) | FastAPI backend | Auto-deploy on `git push master` |
+| Render (free) | FastAPI backend (Python 3.11) | Auto-deploy on `git push master` |
 | Vercel | React frontend | Auto-deploy via GitHub integration |
 | GitHub Actions | Nightly retraining | Cron `0 2 * * *` (2 AM UTC) |
 
-**Environment variables (Render):**
-- `RENDER_DEPLOY_HOOK_URL` — set as a GitHub Actions secret to trigger Render redeployment after incremental model update
+**Vercel env vars (set in Vercel dashboard):**
+- `VITE_API_URL` = `https://mtp-flight-api.onrender.com`
 
-**Vercel config:** `frontend/vercel.json` rewrites all routes to `index.html` so React Router works correctly on direct navigation and page refresh.
+**GitHub Actions secrets (set in repo settings):**
+- `RENDER_DEPLOY_HOOK_URL` — triggers Render redeploy after incremental model update
+
+**deploy_agent MCP server** (registered in `~/.claude/settings.json`):
+- Tools: `render_get_logs`, `render_get_status`, `vercel_get_status`, `deploy_full_stack`
+- Requires restart of Claude Code to activate after settings change
 
 ---
 
@@ -289,8 +305,9 @@ MTP/
 | 4 — Frontend | 4 pages, dark UI, gauge, breakdown bar, live map, dashboard |
 | 5 — Quantification | Regression for delay minutes, delay_category, delay_breakdown |
 | 6 — Regression v2 | HistGBR pipeline: 210 features, quantile p10/p90, per-type regressors |
-| 7 — LightGBM + Incremental | Full LGBM pipeline, 218 features, 91.34% accuracy, POST /feedback |
-| 8 — Cloud Deployment | Render + Vercel deployment, auto-deploy on push, nightly retrain |
+| 7 — LightGBM + Incremental | Full LGBM pipeline, 218 features, 91.34% accuracy, POST /feedback, nightly CI |
+| 8 — Cloud Deployment | Render + Vercel deployment, deploy_agent MCP server, auto-deploy on push |
+| Post-8 — Bug Fixes | CORS regex, api.js VITE_API_URL, workflow permissions, file handle leaks, 49 tests |
 
 ---
 
@@ -303,6 +320,7 @@ MTP/
 | Frontend | React 18, Vite, Tailwind CSS 3, Recharts, React-Leaflet, react-globe.gl |
 | Data sources | OpenSky Network (live flights), Open-Meteo (weather), BTS On-Time Performance |
 | Deployment | Render (backend), Vercel (frontend), GitHub Actions (CI/CD + nightly retrain) |
+| Tooling | deploy_agent MCP server (FastMCP), pytest (49 tests) |
 
 ---
 

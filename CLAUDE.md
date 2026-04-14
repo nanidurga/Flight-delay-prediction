@@ -5,35 +5,46 @@ Goal: Predict US domestic flight delays using LightGBM and serve real-time predi
 
 ---
 
-## Live Deployment (Sprint 8 — Deployed 2026-04-13)
+## Live Deployment (Sprint 8 — Deployed 2026-04-13, post-fixes 2026-04-14)
 
 | Service | URL | Platform |
 |---------|-----|----------|
-| Backend API | https://mtp-flight-api.onrender.com | Render (free tier, Python) |
-| Frontend | https://mtp-flight-delay-exaj8moop-durgas-projects-9ea2fbeb.vercel.app | Vercel |
+| Backend API | https://mtp-flight-api.onrender.com | Render (free tier, Python 3.11) |
+| Frontend | Vercel — URL changes each push (see Vercel dashboard for current) | Vercel |
 | GitHub Repo | https://github.com/nanidurga/Flight-delay-prediction | master branch |
 
 **Render service ID:** `srv-d7eh888sfn5c73d07o1g`
-**Vercel project ID:** `prj_nNItwgRGGIDD4udXJVkB7nnLRyAW`
+**Vercel project ID:** `prj_nNItwgRGGIDD4udXJVkB7nnLRyAW`  
+**Vercel project name:** `mtp-flight-delay` (owned by `durgas-projects-9ea2fbeb`)
 
-The frontend `VITE_API_URL` env var is set to the Render backend URL.
+The frontend `VITE_API_URL` env var (set on Vercel) points to the Render backend URL.  
+`api.js` uses `import.meta.env.VITE_API_URL ?? '/api'` — falls back to Vite proxy in local dev.  
 Render auto-deploys on every push to `master`. Vercel auto-deploys via the GitHub integration.
 
-To redeploy manually, trigger via `deploy_agent` MCP tools or the Render/Vercel dashboards.
+> **Note on Vercel URLs:** Vercel generates a new unique hash URL for each deployment  
+> (e.g. `mtp-flight-delay-abc123-durgas-projects-9ea2fbeb.vercel.app`). The CORS in  
+> `api/main.py` uses `allow_origin_regex` to cover all of them automatically.
+
+To redeploy manually, trigger via `deploy_agent` MCP tools or the Render/Vercel dashboards.  
+To view Render runtime logs, open: https://dashboard.render.com/web/srv-d7eh888sfn5c73d07o1g/logs
 
 ---
 
 ## Folder Structure
 
-**Key files added/changed since Sprint 8:**
+**Key files added/changed since Sprint 8 (includes post-deploy fixes 2026-04-14):**
 - `frontend/vercel.json` — SPA routing rewrites (fixes direct navigation on Vercel)
+- `frontend/src/api.js` — Uses `VITE_API_URL ?? '/api'`; was hardcoded `/api` (broke production)
+- `api/main.py` — CORS now uses `allow_origin_regex` (Vercel hash URLs change each push); fixed file handle leaks in `/feedback`; version 2.0.0
+- `.github/workflows/retrain.yml` — Added `permissions: contents: write`; git push now conditional on actual changes (was failing nightly)
 - `collect_opensky_data.py` — Daily OpenSky data collector (runs before retrain in CI)
-- `.github/workflows/retrain.yml` — Updated to collect OpenSky data before retraining
+- `deploy_agent/render.py` — `get_logs` uses `/events` endpoint (Render REST API has no log stream)
+- `deploy_agent/server.py` — Updated `render_get_logs` tool docstring
+- `deploy_agent/tests/test_render.py` — Updated test mock for new events-based get_logs
 - `api/services/flights.py` — KNOWN_DEST_CITIES expanded to match KNOWN_ORIGIN_CITIES
-- `api/main.py` — Version bumped to 2.0.0, description updated, duplicate `prob` line removed
-- `frontend/src/pages/Home.jsx` — Haversine fallback for all city pairs; distance now always auto-fills
+- `frontend/src/pages/Home.jsx` — Haversine fallback for all city pairs; distance always auto-fills
 - `frontend/src/pages/LiveMap.jsx` — Callsign search + risk filter (All / At-Risk / On-Track)
-- `frontend/src/pages/Dashboard.jsx` — Replaced "DBSCAN Clusters / Cluster Models" stat cards with ROC-AUC and Regression MAE
+- `frontend/src/pages/Dashboard.jsx` — ROC-AUC and Regression MAE stat cards (replaced DBSCAN metrics)
 
 ---
 
@@ -276,21 +287,28 @@ python train_lgbm.py
 # 4. Incremental update on feedback rows (no-op if < 500 rows in data/feedback.csv)
 python train_incremental.py
 
-# 5. Run all tests (26 tests)
-pytest tests/ -v
+# 5. Run all tests (49 tests: 26 core + 23 deploy_agent)
+pytest tests/ deploy_agent/tests/ -v
+
+# 6. Start the deploy_agent MCP server (for Claude Code tool access)
+python deploy_agent/server.py
+# Registered automatically via ~/.claude/settings.json — restart Claude Code to pick up
 ```
 
 ---
 
 ## Known Issues / Gotchas
 
-- **OpenSky rate limit:** The free OpenSky API allows ~1 request per 10 seconds for anonymous access. `collect_opensky_data.py` sleeps 10 s between airports. In CI the step is `continue-on-error: true` so a rate-limit doesn't fail the retrain.
-- **OpenSky doesn't provide scheduled times:** So exact delay labels can't be computed from OpenSky alone. Use BTS On-Time Performance monthly data for ground-truth labeling.
-- **Render free tier cold starts:** The API can take ~30 s to wake up after inactivity. The frontend shows a loading state but users may see a delay on first prediction.
-- **`KNOWN_DEST_CITIES` was previously only 19 cities** (now fixed to match KNOWN_ORIGIN_CITIES). If you add new cities, update `KNOWN_ORIGIN_CITIES`, `KNOWN_DEST_CITIES`, and `AIRPORT_COORDS` in `Home.jsx` together.
+- **OpenSky rate limit:** Free API allows ~1 req/10 s for anonymous access. `collect_opensky_data.py` sleeps 10 s between airports. In CI the step is `continue-on-error: true` so rate-limits don't fail the retrain.
+- **OpenSky doesn't provide scheduled times:** Exact delay labels can't be computed from OpenSky alone. Ground-truth labels come from `POST /feedback` and BTS On-Time Performance monthly data.
+- **Render free tier cold starts:** API takes ~30 s to wake up after inactivity. Frontend shows loading state. Users in India will see ~250 ms extra latency to Render's Oregon server.
 - **`vercel.json` must stay in `frontend/`** — without it, refreshing any page other than `/` returns Vercel 404.
-- **Dashboard stat cards** previously showed "DBSCAN Clusters" / "Cluster Models" from Sprint 1. Now show ROC-AUC and Regression MAE. If info endpoint changes shape, update Dashboard.jsx stat cards accordingly.
-- **Google Flights API:** No free official API exists. Options: SerpAPI (~100 free searches/month), Amadeus (~2000 free calls/month). Not yet implemented — see IMPLEMENTATION_TODO.md.
+- **Vercel URL changes on every push:** Each Vercel deployment gets a new hash URL. CORS in `api/main.py` uses `allow_origin_regex=r"https://mtp-flight-delay[^.]*\.vercel\.app"` to handle this automatically. Do NOT revert to a hardcoded URL.
+- **deploy_agent MCP tools:** Registered in `~/.claude/settings.json`. Requires Claude Code restart to appear. Tools: `render_get_logs`, `render_get_status`, `vercel_get_status`, `deploy_full_stack`. Runtime logs not available via REST API — use Render dashboard.
+- **CI crash if feedback hits 500 rows:** `train_incremental.py` tries to read `data/final_preprocessed_data.csv` (gitignored, 41 MB) for the safety gate. If you ever accumulate 500 feedback rows, the nightly retrain will crash with `FileNotFoundError`. Fix: save `X_test.pkl`/`y_test.pkl` from `train_lgbm.py` to `model/` and load them in `train_incremental.py` instead.
+- **Python versions:** Local dev runs Python 3.13 (system). Render and GitHub Actions use Python 3.11 (configured). All packages are compatible with both — no action needed.
+- **Deprecation warnings in tests:** `@app.on_event("startup")` and `Field(..., example=...)` produce warnings but work correctly. Leave for thesis; fix before any production upgrade.
+- **Google Flights API:** No free official API. Options: SerpAPI (~100 free/month), Amadeus (~2000 free/month). Not implemented — see IMPLEMENTATION_TODO.md.
 
 ---
 
@@ -306,6 +324,7 @@ pytest tests/ -v
 | 6 — Regression v2 | Done | HistGBR pipeline: 210 features, 7 historical features, quantile p10/p90, per-type regressors |
 | 7 — LightGBM + Incremental | Done | Full LightGBM pipeline, 218 features, 91.34% accuracy, POST /feedback, nightly GitHub Actions |
 | 8 — Cloud Deployment | Done | deploy_agent MCP server, Render (FastAPI backend) + Vercel (React frontend), auto-deploy on push |
+| Post-8 — Bug Fixes | Done | CORS regex (Vercel hash URLs), api.js VITE_API_URL, workflow permissions, file handle leaks, render.py events endpoint, 49 tests passing |
 
 ---
 
